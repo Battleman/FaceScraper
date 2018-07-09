@@ -53,8 +53,10 @@ class MyThread(threading.Thread):
                 filename = FACES_FOLDER.format(sciper)
                 pprint("Thread {}, saved sciper {}".format(
                     self.thread_id, sciper))
+                url = str(req.content)[12:-3]
+                img_req = requests.get("https://people.epfl.ch"+url)
                 with open(filename, 'wb') as image:
-                    image.write(req.content)
+                    image.write(img_req.content)
             else:
                 pprint("Thead {}, no result found for sciper {}".format(
                     self.thread_id, sciper))

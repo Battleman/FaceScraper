@@ -1,5 +1,5 @@
 #!/usr/local/bin/python
-# coding: latin-1
+# coding: utf-8
 """
 Author: Olivier Cloux
 Date: 23.06.2018
@@ -11,16 +11,15 @@ import random
 import time
 import threading
 from pprint import pprint
-# from io import BytesIO
-
 import requests
-# from PIL import Image
+import csv
 
-MOCK = True
+MOCK = False
 NUM_THREADS = 10
 BASEPAGE = "https://people.epfl.ch/cgi-bin/people/getPhoto?id="
-FACES_FOLDER = "/media/battleman/DATA/Documents/" + \
-    "Programming/Python/FaceScraper/faces/{}.jpeg"
+FACES_FOLDER = "/storage/Documents/" + \
+    "Programming/Python/FaceScraper/faces/"
+SCIPERS_RANGE = range(160000, 280000)
 
 
 def chunks(target, num):
@@ -41,6 +40,7 @@ class MyThread(threading.Thread):
         super().__init__()
         self.scipers_list = scipers_list
         self.thread_id = thread_id
+        self.active_images = set()
 
     def run(self):
         for sciper in self.scipers_list:
@@ -50,16 +50,23 @@ class MyThread(threading.Thread):
                     sciper, req.status_code))
                 continue
             if req.content and 'html' not in str(req.content[:30]):
-                filename = FACES_FOLDER.format(sciper)
-                pprint("Thread {}, saved sciper {}".format(
-                    self.thread_id, sciper))
-                url = str(req.content)[12:-3]
-                img_req = requests.get("https://people.epfl.ch"+url)
-                with open(filename, 'wb') as image:
-                    image.write(img_req.content)
-            else:
-                pprint("Thead {}, no result found for sciper {}".format(
-                    self.thread_id, sciper))
+                url = "https://people.epfl.ch"+str(req.content)[12:-3]
+                self.active_images.add((sciper, url))
+                print("Thread {} sciper {} url {}".format(
+                    self.thread_id, sciper, url
+                ))
+
+    def join(self):
+        super().join()
+        return self.active_images
+
+
+def save_result(filename, data):
+    with open(filename, 'a') as file:
+        csv_out = csv.writer(file)
+        # csv_out.writerow(['sciper', 'pic_url'])
+        for row in data:
+            csv_out.writerow(row)
 
 
 def main():
@@ -68,9 +75,9 @@ def main():
     """
     start_time = time.time()
     if MOCK:
-        all_scipers = list(random.sample(range(100000, 400000), 200))
+        all_scipers = random.sample(SCIPERS_RANGE, 200)
     else:
-        all_scipers = list(range(100000, 400000))
+        all_scipers = SCIPERS_RANGE
     sublists = list(chunks(all_scipers, len(all_scipers)//NUM_THREADS))
     threads_list = []
     for num_thread in range(NUM_THREADS):
@@ -78,9 +85,10 @@ def main():
         thread.start()
         threads_list.append(thread)
 
+    all_active_scipers = set()
     for thread in threads_list:
-        thread.join()
-
+        all_active_scipers = all_active_scipers.union(thread.join())
+    save_result(FACES_FOLDER+"active_scipers.csv", all_active_scipers)
     end_time = time.time()
     pprint("Spent time with {} threads: {}".format(
         NUM_THREADS, end_time-start_time))

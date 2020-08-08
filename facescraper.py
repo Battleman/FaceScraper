@@ -19,7 +19,7 @@ NUM_THREADS = 10
 BASEPAGE = "https://people.epfl.ch/cgi-bin/people/getPhoto?id="
 FACES_FOLDER = "/storage/Documents/" + \
     "Programming/Python/FaceScraper/faces/"
-SCIPERS_RANGE = range(160000, 280000)
+SCIPERS_RANGE = range(160000, 350000)
 
 
 def chunks(target, num):
@@ -50,7 +50,7 @@ class MyThread(threading.Thread):
                     sciper, req.status_code))
                 continue
             if req.content and 'html' not in str(req.content[:30]):
-                url = "https://people.epfl.ch"+str(req.content)[12:-3]
+                url = str(req.content)[12:-3]
                 self.active_images.add((sciper, url))
                 print("Thread {} sciper {} url {}".format(
                     self.thread_id, sciper, url
@@ -75,20 +75,25 @@ def main():
     """
     start_time = time.time()
     if MOCK:
-        all_scipers = random.sample(SCIPERS_RANGE, 200)
+        all_scipers = [random.sample(SCIPERS_RANGE, 200)]
     else:
-        all_scipers = SCIPERS_RANGE
-    sublists = list(chunks(all_scipers, len(all_scipers)//NUM_THREADS))
-    threads_list = []
-    for num_thread in range(NUM_THREADS):
-        thread = MyThread(sublists[num_thread], num_thread)
-        thread.start()
-        threads_list.append(thread)
+        all_scipers = list(chunks(SCIPERS_RANGE, len(SCIPERS_RANGE)//10))
 
-    all_active_scipers = set()
-    for thread in threads_list:
-        all_active_scipers = all_active_scipers.union(thread.join())
-    save_result(FACES_FOLDER+"active_scipers.csv", all_active_scipers)
+    for subrange in all_scipers:
+        print("Starting with {} threads from scipers {} to {}".format(
+            NUM_THREADS, subrange[0], subrange[-1]
+        ))
+        sublists = list(chunks(subrange, len(subrange)//NUM_THREADS))
+        threads_list = []
+        for num_thread in range(NUM_THREADS):
+            thread = MyThread(sublists[num_thread], num_thread)
+            thread.start()
+            threads_list.append(thread)
+
+        all_active_scipers = set()
+        for thread in threads_list:
+            all_active_scipers = all_active_scipers.union(thread.join())
+        save_result(FACES_FOLDER+"active_scipers.csv", all_active_scipers)
     end_time = time.time()
     pprint("Spent time with {} threads: {}".format(
         NUM_THREADS, end_time-start_time))
